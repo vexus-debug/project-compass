@@ -1,47 +1,24 @@
 import type { BybitTickerResponse, BybitKlineResponse, Candle, Timeframe } from '@/types/scanner';
+import { supabase } from '@/integrations/supabase/client';
 
-const DIRECT_URL = 'https://api.bybit.com';
-
-// CORS proxies to try
-const CORS_PROXIES = [
-  (url: string) => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
-  (url: string) => `https://corsproxy.io/?${encodeURIComponent(url)}`,
-];
-
-let skipDirect = false; // After first CORS failure, skip direct attempts
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 
 async function fetchJson<T>(path: string): Promise<T> {
-  const fullUrl = `${DIRECT_URL}${path}`;
+  const res = await fetch(`${SUPABASE_URL}/functions/v1/bybit-proxy`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'apikey': SUPABASE_KEY,
+    },
+    body: JSON.stringify({ path }),
+  });
 
-  // Try direct first (only once globally)
-  if (!skipDirect) {
-    try {
-      const res = await fetch(fullUrl);
-      if (!res.ok) throw new Error(`Bybit API error: ${res.status}`);
-      return await res.json();
-    } catch {
-      skipDirect = true;
-    }
+  if (!res.ok) {
+    throw new Error(`Edge function error: ${res.status}`);
   }
 
-  // Try each proxy for this specific request
-  const errors: string[] = [];
-  for (let i = 0; i < CORS_PROXIES.length; i++) {
-    try {
-      const proxyUrl = CORS_PROXIES[i](fullUrl);
-      const res = await fetch(proxyUrl);
-      if (!res.ok) throw new Error(`Proxy ${i} HTTP ${res.status}`);
-      const text = await res.text();
-      // Validate it's JSON before parsing
-      if (text.startsWith('<')) throw new Error(`Proxy ${i} returned HTML`);
-      return JSON.parse(text) as T;
-    } catch (err: any) {
-      errors.push(`Proxy ${i}: ${err.message}`);
-      continue;
-    }
-  }
-
-  throw new Error(`All proxies failed for ${path}: ${errors.join('; ')}`);
+  return res.json();
 }
 
 export async function fetchTickers(category: 'spot' | 'linear'): Promise<BybitTickerResponse> {
