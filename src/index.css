@@ -97,6 +97,10 @@
   .animate-pulse-dot {
     animation: pulse-dot 1.5s ease-in-out infinite;
   }
+
+  .safe-area-bottom {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
 }
 
 /* Scrollbar styling */

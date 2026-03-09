@@ -18,7 +18,7 @@ export function AlertLog({ alerts, onClear }: AlertLogProps) {
   }, [alerts.length]);
 
   return (
-    <div className="flex h-full flex-col border-r border-border">
+    <div className="flex h-full flex-col md:border-r border-border">
       <div className="flex items-center justify-between border-b border-border px-3 py-2">
         <h2 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
           Alert Log
@@ -60,7 +60,7 @@ function AlertRow({ alert }: { alert: AlertEntry }) {
 
   return (
     <div
-      className={`flex items-center gap-1.5 rounded-sm px-2 py-1 text-[10px] leading-tight transition-colors hover:bg-secondary ${
+      className={`flex items-center gap-2 rounded-sm px-2 py-2 md:py-1 text-xs md:text-[10px] leading-tight transition-colors hover:bg-secondary ${
         isBull ? 'text-trend-bull' : 'text-trend-bear'
       }`}
     >

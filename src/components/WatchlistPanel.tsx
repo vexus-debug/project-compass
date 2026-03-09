@@ -15,7 +15,7 @@ export function WatchlistPanel({ watchlist, assets, onRemove, onToggleAlerts }: 
   const assetMap = new Map(assets.map((a) => [a.symbol, a]));
 
   return (
-    <div className="flex h-full flex-col border-l border-border">
+    <div className="flex h-full flex-col md:border-l border-border">
       <div className="border-b border-border px-3 py-2">
         <h2 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
           Watchlist
@@ -31,7 +31,7 @@ export function WatchlistPanel({ watchlist, assets, onRemove, onToggleAlerts }: 
             Click ★ on any asset to watch it
           </p>
         ) : (
-          <div className="space-y-0.5 p-1">
+          <div className="space-y-1 p-2 md:space-y-0.5 md:p-1">
             {watchlist.map((item) => {
               const asset = assetMap.get(item.symbol);
               return (
@@ -77,28 +77,28 @@ function WatchlistRow({
   );
 
   return (
-    <div className="rounded-sm bg-secondary/30 p-2 text-[10px]">
+    <div className="rounded-sm bg-secondary/30 p-2.5 md:p-2 text-xs md:text-[10px]">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-1.5">
-          <span className="font-semibold text-xs">{item.symbol.replace('USDT', '')}</span>
+          <span className="font-semibold text-sm md:text-xs">{item.symbol.replace('USDT', '')}</span>
           {asset && (
             <span className={`tabular-nums ${asset.change24h >= 0 ? 'text-trend-bull' : 'text-trend-bear'}`}>
               {asset.change24h >= 0 ? '+' : ''}{asset.change24h.toFixed(2)}%
             </span>
           )}
         </div>
-        <div className="flex items-center gap-0.5">
+        <div className="flex items-center gap-1">
           <Button
             variant="ghost"
             size="icon"
-            className="h-5 w-5"
+            className="h-7 w-7 md:h-5 md:w-5"
             onClick={onToggleAlerts}
             title={item.alertsEnabled ? 'Disable alerts' : 'Enable alerts'}
           >
-            {item.alertsEnabled ? <Bell className="h-2.5 w-2.5 text-accent" /> : <BellOff className="h-2.5 w-2.5 text-muted-foreground" />}
+            {item.alertsEnabled ? <Bell className="h-3.5 w-3.5 md:h-2.5 md:w-2.5 text-accent" /> : <BellOff className="h-3.5 w-3.5 md:h-2.5 md:w-2.5 text-muted-foreground" />}
           </Button>
-          <Button variant="ghost" size="icon" className="h-5 w-5" onClick={onRemove}>
-            <X className="h-2.5 w-2.5 text-muted-foreground" />
+          <Button variant="ghost" size="icon" className="h-7 w-7 md:h-5 md:w-5" onClick={onRemove}>
+            <X className="h-3.5 w-3.5 md:h-2.5 md:w-2.5 text-muted-foreground" />
           </Button>
         </div>
       </div>
@@ -112,14 +112,14 @@ function WatchlistRow({
             </span>
           </div>
 
-          <div className="flex gap-1">
+          <div className="flex gap-1 flex-wrap">
             {Object.entries(signals).map(([tf, sig]) => {
               if (!sig?.direction) return null;
               const isBull = sig.direction === 'bull';
               return (
                 <div
                   key={tf}
-                  className={`flex flex-col items-center rounded px-1 py-0.5 ${
+                  className={`flex flex-col items-center rounded px-1.5 py-0.5 ${
                     isBull ? 'bg-trend-bull/10' : 'bg-trend-bear/10'
                   }`}
                 >
