@@ -4,6 +4,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AppLayout } from "@/components/AppLayout";
+import { ScannerProvider } from "@/contexts/ScannerContext";
 import { PatternScannerProvider } from "@/contexts/PatternScannerContext";
 import Dashboard from "./pages/Dashboard.tsx";
 import CandlestickPatterns from "./pages/CandlestickPatterns.tsx";
@@ -19,17 +20,19 @@ const App = () => (
       <Toaster />
       <Sonner />
       <BrowserRouter>
-        <PatternScannerProvider>
-          <AppLayout>
-            <Routes>
-              <Route path="/" element={<Dashboard />} />
-              <Route path="/candlestick-patterns" element={<CandlestickPatterns />} />
-              <Route path="/chart-patterns" element={<ChartPatterns />} />
-              <Route path="/market-structure" element={<MarketStructure />} />
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-          </AppLayout>
-        </PatternScannerProvider>
+        <ScannerProvider>
+          <PatternScannerProvider>
+            <AppLayout>
+              <Routes>
+                <Route path="/" element={<Dashboard />} />
+                <Route path="/candlestick-patterns" element={<CandlestickPatterns />} />
+                <Route path="/chart-patterns" element={<ChartPatterns />} />
+                <Route path="/market-structure" element={<MarketStructure />} />
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+            </AppLayout>
+          </PatternScannerProvider>
+        </ScannerProvider>
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>

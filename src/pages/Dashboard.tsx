@@ -3,9 +3,7 @@ import { AlertLog } from '@/components/AlertLog';
 import { ScannerMatrix } from '@/components/ScannerMatrix';
 import { WatchlistPanel } from '@/components/WatchlistPanel';
 import { SettingsPanel } from '@/components/SettingsPanel';
-import { useScanner } from '@/hooks/useScanner';
-import { useWatchlist } from '@/hooks/useWatchlist';
-import { useSettings } from '@/hooks/useSettings';
+import { useSharedScanner } from '@/contexts/ScannerContext';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { RefreshCw, BarChart3, Bell, Star } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -13,9 +11,11 @@ import { Button } from '@/components/ui/button';
 type MobileTab = 'scanner' | 'alerts' | 'watchlist';
 
 const Dashboard = () => {
-  const { settings, updateSettings } = useSettings();
-  const { watchlist, addToWatchlist, removeFromWatchlist, toggleAlerts, isWatched } = useWatchlist();
-  const { assets, alerts, scanning, lastScanTime, scanProgress, clearAlerts, runScan } = useScanner(settings, watchlist);
+  const {
+    settings, updateSettings,
+    watchlist, addToWatchlist, removeFromWatchlist, toggleAlerts, isWatched,
+    assets, alerts, scanning, lastScanTime, scanProgress, clearAlerts, runScan,
+  } = useSharedScanner();
   const isMobile = useIsMobile();
   const [activeTab, setActiveTab] = useState<MobileTab>('scanner');
 
@@ -25,7 +25,7 @@ const Dashboard = () => {
 
   if (isMobile) {
     return (
-      <div className="flex h-[100dvh] flex-col bg-background">
+      <div className="flex h-full flex-col bg-background">
         {/* Compact mobile header */}
         <header className="flex items-center justify-between border-b border-border px-3 py-2">
           <div className="flex items-center gap-2">
@@ -105,9 +105,8 @@ const Dashboard = () => {
     );
   }
 
-  // Desktop layout (unchanged)
   return (
-    <div className="flex h-screen flex-col overflow-hidden bg-background">
+    <div className="flex h-full flex-col overflow-hidden bg-background">
       <header className="flex items-center justify-between border-b border-border px-3 py-1.5">
         <div className="flex items-center gap-3">
           <h1 className="text-xs font-bold uppercase tracking-[0.2em] text-primary">

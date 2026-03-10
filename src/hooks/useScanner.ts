@@ -13,6 +13,7 @@ import { ALL_TIMEFRAMES } from '@/types/scanner';
 
 const MAX_ALERTS = 200;
 const TOP_SYMBOLS_COUNT = 50;
+const BATCH_SIZE = 6;
 
 export function useScanner(settings: ScannerSettings, watchlist: WatchlistItem[]) {
   const [assets, setAssets] = useState<Map<string, AssetTrend>>(new Map());
@@ -125,7 +126,6 @@ export function useScanner(settings: ScannerSettings, watchlist: WatchlistItem[]
 
       const newAssets = new Map<string, AssetTrend>();
 
-      const BATCH_SIZE = 3;
       for (let i = 0; i < uniqueSymbols.length; i += BATCH_SIZE) {
         const batch = uniqueSymbols.slice(i, i + BATCH_SIZE);
         const results = await Promise.all(
@@ -137,7 +137,7 @@ export function useScanner(settings: ScannerSettings, watchlist: WatchlistItem[]
         setScanProgress({ current: Math.min(i + BATCH_SIZE, uniqueSymbols.length), total: uniqueSymbols.length });
 
         if (i + BATCH_SIZE < uniqueSymbols.length) {
-          await new Promise((r) => setTimeout(r, 300));
+          await new Promise((r) => setTimeout(r, 100));
         }
       }
 
