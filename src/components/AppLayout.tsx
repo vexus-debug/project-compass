@@ -5,9 +5,9 @@ import { useIsMobile } from '@/hooks/use-mobile';
 
 const NAV_ITEMS = [
   { to: '/', label: 'Scanner', icon: BarChart3 },
-  { to: '/candlestick-patterns', label: 'Candlesticks', icon: CandlestickChart },
-  { to: '/chart-patterns', label: 'Chart Patterns', icon: LayoutGrid },
-  { to: '/market-structure', label: 'Market Structure', icon: Network },
+  { to: '/candlestick-patterns', label: 'Candles', icon: CandlestickChart },
+  { to: '/chart-patterns', label: 'Charts', icon: LayoutGrid },
+  { to: '/market-structure', label: 'SMC', icon: Network },
 ];
 
 export function AppLayout({ children }: { children: ReactNode }) {
@@ -16,20 +16,21 @@ export function AppLayout({ children }: { children: ReactNode }) {
   if (isMobile) {
     return (
       <div className="flex h-[100dvh] flex-col bg-background">
-        <div className="flex-1 overflow-hidden">{children}</div>
-        <nav className="flex border-t border-border bg-card safe-area-bottom">
+        {/* Top nav bar for pages */}
+        <nav className="flex border-b border-border bg-card px-1">
           {NAV_ITEMS.map((item) => (
             <NavLink
               key={item.to}
               to={item.to}
-              className="flex flex-1 flex-col items-center gap-0.5 py-2 text-[9px] text-muted-foreground transition-colors"
-              activeClassName="text-primary"
+              className="flex flex-1 items-center justify-center gap-1 py-2 text-[9px] text-muted-foreground transition-colors"
+              activeClassName="text-primary border-b-2 border-primary"
             >
-              <item.icon className="h-4 w-4" />
+              <item.icon className="h-3 w-3" />
               <span className="font-medium">{item.label}</span>
             </NavLink>
           ))}
         </nav>
+        <div className="flex-1 overflow-hidden">{children}</div>
       </div>
     );
   }
