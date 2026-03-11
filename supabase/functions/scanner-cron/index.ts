@@ -724,7 +724,9 @@ async function runFullScan(supabase: any) {
       for (const tf of SCAN_TIMEFRAMES) {
         try {
           const candles = await fetchKlines(symbol, tf, category);
-          if (candles.length < 20) continue;
+          // Use closed candles only (exclude last still-forming candle)
+          const closedCandles = candles.slice(0, -1);
+          if (closedCandles.length < 20) continue;
           const now = Date.now(), sym = symbol.replace("USDT", "");
 
           const adjustSig = (baseSig: string, patternType: string) => {
