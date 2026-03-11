@@ -76,7 +76,7 @@ export function detectCandlestickPatterns(candles: Candle[], excludeLastCandle =
 
     // Shooting Star (bearish reversal at top)
     if (upperWick(c) > body * 2 && lowerWick(c) < body * 0.5 && isBullish(prev)) {
-      patterns.push({ name: 'Shooting Star', type: 'bearish', significance: 'high', candleIndex: i, description: 'Bearish reversal — long upper wick at top' });
+      patterns.push({ name: 'Shooting Star', type: 'bearish', significance: 'high', candleIndex: i, description: 'Bearish reversal — long upper wick at top shows rejection. Enter short on break below low. Stop above high. Target: 1:2 RR or next support.' });
     }
 
     // Hanging Man
