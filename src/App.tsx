@@ -19,6 +19,10 @@ import MultiTimeframe from "./pages/MultiTimeframe.tsx";
 import Heatmap from "./pages/Heatmap.tsx";
 import SupplyDemand from "./pages/SupplyDemand.tsx";
 import VolatilityRanking from "./pages/VolatilityRanking.tsx";
+import SymbolDetail from "./pages/SymbolDetail.tsx";
+import FundingRates from "./pages/FundingRates.tsx";
+import CorrelationMatrix from "./pages/CorrelationMatrix.tsx";
+import SectorRotation from "./pages/SectorRotation.tsx";
 import NotFound from "./pages/NotFound.tsx";
 
 const queryClient = new QueryClient();
@@ -45,6 +49,10 @@ const App = () => (
                   <Route path="/heatmap" element={<Heatmap />} />
                   <Route path="/supply-demand" element={<SupplyDemand />} />
                   <Route path="/volatility" element={<VolatilityRanking />} />
+                  <Route path="/funding" element={<FundingRates />} />
+                  <Route path="/correlation" element={<CorrelationMatrix />} />
+                  <Route path="/sectors" element={<SectorRotation />} />
+                  <Route path="/symbol/:symbol" element={<SymbolDetail />} />
                   <Route path="/trade-planner" element={<TradePlanner />} />
                   <Route path="*" element={<NotFound />} />
                 </Routes>

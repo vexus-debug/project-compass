@@ -14,7 +14,8 @@ const SymbolDetail = () => {
   const { symbol } = useParams<{ symbol: string }>();
   const navigate = useNavigate();
   const { assets, alerts } = useSharedScanner();
-  const { patterns } = useSharedPatternScanner();
+  const { candlestickPatterns, chartPatterns, structurePatterns } = useSharedPatternScanner();
+  const patterns = [...candlestickPatterns, ...chartPatterns, ...structurePatterns];
   const { assets: rangeAssets } = useSharedRangeScanner();
   const isMobile = useIsMobile();
   const [fundingRate, setFundingRate] = useState<number | null>(null);

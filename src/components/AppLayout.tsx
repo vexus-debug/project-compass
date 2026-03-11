@@ -1,6 +1,6 @@
 import { ReactNode } from 'react';
 import { NavLink } from '@/components/NavLink';
-import { BarChart3, ChartCandlestick, LayoutGrid, Network, Layers, Zap, Calculator, Activity, ArrowUpDown, Grid3X3, Box, Flame } from 'lucide-react';
+import { BarChart3, ChartCandlestick, LayoutGrid, Network, Layers, Zap, Calculator, Activity, ArrowUpDown, Grid3X3, Box, Flame, DollarSign, GitBranch, PieChart } from 'lucide-react';
 import { useIsMobile } from '@/hooks/use-mobile';
 
 const NAV_ITEMS = [
@@ -15,6 +15,9 @@ const NAV_ITEMS = [
   { to: '/heatmap', label: 'Heatmap', icon: Grid3X3 },
   { to: '/supply-demand', label: 'S/D', icon: Box },
   { to: '/volatility', label: 'Vol', icon: Flame },
+  { to: '/funding', label: 'Funding', icon: DollarSign },
+  { to: '/correlation', label: 'Corr', icon: GitBranch },
+  { to: '/sectors', label: 'Sectors', icon: PieChart },
   { to: '/trade-planner', label: 'Trade', icon: Calculator },
 ];
 
@@ -49,15 +52,15 @@ export function AppLayout({ children }: { children: ReactNode }) {
           <NavLink
             key={item.to}
             to={item.to}
-            className="group flex flex-col items-center gap-0.5 rounded px-2 py-2 text-muted-foreground transition-colors hover:text-foreground"
-            activeClassName="text-primary bg-primary/10"
+            className="flex flex-col items-center justify-center gap-0.5 rounded p-1.5 text-[8px] text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+            activeClassName="bg-primary/10 text-primary"
           >
             <item.icon className="h-4 w-4" />
-            <span className="text-[7px] font-medium uppercase tracking-wider">{item.label}</span>
+            <span className="font-medium">{item.label}</span>
           </NavLink>
         ))}
       </nav>
-      <div className="flex flex-1 flex-col overflow-hidden">{children}</div>
+      <div className="flex-1 overflow-hidden">{children}</div>
     </div>
   );
 }
