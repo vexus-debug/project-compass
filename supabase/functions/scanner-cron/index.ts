@@ -741,18 +741,21 @@ async function runFullScan(supabase: any) {
             return { significance: baseSig === "high" ? "medium" : "low", aligned: false };
           };
 
-          for (const p of detectCandlestickPatterns(candles)) {
-            const ci = p.candleIndex >= 0 && p.candleIndex < candles.length ? candles[p.candleIndex].time : candles[candles.length - 1]?.time ?? now;
+          for (const p of detectCandlestickPatterns(closedCandles)) {
+            const ci = p.candleIndex >= 0 && p.candleIndex < closedCandles.length ? closedCandles[p.candleIndex].time : closedCandles[closedCandles.length - 1]?.time ?? now;
             const { significance, aligned } = adjustSig(p.significance, p.type);
+            // High-probability filter: skip low significance and unaligned neutral
+            if (significance === "low") continue;
+            if (significance === "medium" && !aligned && p.type === "neutral") continue;
             candlestickResults.push({ id: `cs-${symbol}-${tf}-${p.name}-${now}`, symbol: sym, timeframe: tf, pattern: { ...p, significance }, price, detectedAt: now, formedAt: ci > 0 ? ci : now, category: "candlestick", trendAligned: aligned });
           }
-          for (const p of detectChartPatterns(candles)) {
-            const ci = p.endIndex >= 0 && p.endIndex < candles.length ? candles[p.endIndex].time : candles[candles.length - 1]?.time ?? now;
+          for (const p of detectChartPatterns(closedCandles)) {
+            const ci = p.endIndex >= 0 && p.endIndex < closedCandles.length ? closedCandles[p.endIndex].time : closedCandles[closedCandles.length - 1]?.time ?? now;
             const { significance, aligned } = adjustSig(p.significance, p.type);
             chartResults.push({ id: `ch-${symbol}-${tf}-${p.name}-${now}`, symbol: sym, timeframe: tf, pattern: { ...p, significance }, price, detectedAt: now, formedAt: ci > 0 ? ci : now, category: "chart", trendAligned: aligned });
           }
-          for (const p of detectMarketStructure(candles)) {
-            const ci = p.candleIndex >= 0 && p.candleIndex < candles.length ? candles[p.candleIndex].time : candles[candles.length - 1]?.time ?? now;
+          for (const p of detectMarketStructure(closedCandles)) {
+            const ci = p.candleIndex >= 0 && p.candleIndex < closedCandles.length ? closedCandles[p.candleIndex].time : closedCandles[closedCandles.length - 1]?.time ?? now;
             const { significance, aligned } = adjustSig(p.significance, p.type);
             structureResults.push({ id: `ms-${symbol}-${tf}-${p.name}-${now}`, symbol: sym, timeframe: tf, pattern: { ...p, significance }, price, detectedAt: now, formedAt: ci > 0 ? ci : now, category: "structure", trendAligned: aligned });
           }
