@@ -423,7 +423,12 @@ function analyzeTrend(candles: Candle[], emaPeriods = { fast: 9, slow: 21, mid: 
 
   // Weighted voting (simplified - same logic as client)
   let bull = 0, bear = 0, tw = 0;
-  const vote = (w: number, sig: "bull" | "bear" | "neutral") => { tw += w; if (sig === "bull") bull += w; else if (sig === "bear") bear += w; };
+  let totalIndicators = 0, confirmedBull = 0, confirmedBear = 0;
+  const vote = (w: number, sig: "bull" | "bear" | "neutral") => {
+    tw += w; totalIndicators++;
+    if (sig === "bull") { bull += w; confirmedBull++; }
+    else if (sig === "bear") { bear += w; confirmedBear++; }
+  };
 
   // EMA Ribbon
   const emaAligned = e9 > e21 && e21 > e50 && e50 > e200;
