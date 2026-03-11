@@ -119,7 +119,7 @@ export function detectCandlestickPatterns(candles: Candle[], excludeLastCandle =
 
     // Dark Cloud Cover
     if (isBearish(c) && isBullish(prev) && c.open > prev.high && c.close < (prev.open + prev.close) / 2 && c.close > prev.open) {
-      patterns.push({ name: 'Dark Cloud Cover', type: 'bearish', significance: 'medium', candleIndex: i, description: 'Bear candle closes below midpoint of prior bull' });
+      patterns.push({ name: 'Dark Cloud Cover', type: 'bearish', significance: 'medium', candleIndex: i, description: 'Bear candle closes below midpoint of prior bull. Enter short on confirmation, stop above pattern high.' });
     }
 
     // Tweezer Bottom
