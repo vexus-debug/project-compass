@@ -662,28 +662,7 @@ interface RangeLevel {
   lower: number;
   midpoint: number;
   width: number; // percentage width
-  }
-
-  // 2.5. Range scan — detect ranging/consolidating coins
-  const rangeResults: any[] = [];
-  for (let i = 0; i < symbols.length; i += BATCH_SIZE) {
-    const batch = symbols.slice(i, i + BATCH_SIZE);
-    const results = await Promise.all(batch.map(async ({ symbol, category, price, change, vol }) => {
-      const signals: any = {};
-      for (const tf of ALL_TIMEFRAMES) {
-        try {
-          const candles = await fetchKlines(symbol, tf, category);
-          if (candles.length < 50) continue;
-          const signal = analyzeRange(candles);
-          if (signal) signals[tf] = signal;
-        } catch { /* skip */ }
-      }
-      if (Object.keys(signals).length === 0) return null;
-      return { symbol, price, change24h: change, volume24h: vol, signals, lastUpdated: Date.now(), marketType: category };
-    }));
-    rangeResults.push(...results.filter(Boolean));
-    if (i + BATCH_SIZE < symbols.length) await new Promise(r => setTimeout(r, 50));
-  }
+}
 
 function analyzeRange(candles: Candle[], emaPeriods = { fast: 9, slow: 21, mid: 50, long: 200 }, adxThreshold = 25): any {
   if (candles.length < emaPeriods.long + 10) return null;
