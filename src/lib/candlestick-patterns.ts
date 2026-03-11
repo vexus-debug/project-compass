@@ -37,8 +37,13 @@ function avgBody(candles: Candle[], lookback: number = 10): number {
   return slice.reduce((s, c) => s + bodySize(c), 0) / slice.length;
 }
 
-export function detectCandlestickPatterns(candles: Candle[]): CandlestickPattern[] {
-  if (candles.length < 5) return [];
+/**
+ * Detect candlestick patterns on CLOSED candles only.
+ * Pass excludeLastCandle=true (default) to drop the still-forming candle.
+ */
+export function detectCandlestickPatterns(candles: Candle[], excludeLastCandle = true): CandlestickPattern[] {
+  const data = excludeLastCandle ? candles.slice(0, -1) : candles;
+  if (data.length < 5) return [];
 
   const patterns: CandlestickPattern[] = [];
   const len = candles.length;
