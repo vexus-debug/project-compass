@@ -114,7 +114,6 @@ function calculateTrendDuration(
   // MACD histogram declining
   if (isBull && macdHist < 0) exhaustionSignals.push('MACD histogram negative');
   if (!isBull && macdHist > 0) exhaustionSignals.push('MACD histogram positive');
-  }
 
   // Extended duration (trend might be overextended)
   if (bars > 50) exhaustionSignals.push(`Extended duration (${bars} bars)`);
