@@ -158,7 +158,7 @@ const SupplyDemand = () => {
 
   const filtered = useMemo(() => {
     if (!search) return allRows;
-    return allRows.filter(r => r.symbol?.toLowerCase().includes(search.toLowerCase()) || r.asset.symbol.toLowerCase().includes(search.toLowerCase()));
+    return allRows.filter(r => r.asset.symbol.toLowerCase().includes(search.toLowerCase()));
   }, [allRows, search]);
 
   const selectedRow = selected ? allRows.find(r => r.asset.symbol === selected) : null;
