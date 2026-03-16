@@ -23,6 +23,7 @@ import SymbolDetail from "./pages/SymbolDetail.tsx";
 import FundingRates from "./pages/FundingRates.tsx";
 import CorrelationMatrix from "./pages/CorrelationMatrix.tsx";
 import SectorRotation from "./pages/SectorRotation.tsx";
+import IndicatorScanner from "./pages/IndicatorScanner.tsx";
 import NotFound from "./pages/NotFound.tsx";
 
 const queryClient = new QueryClient();
