@@ -1056,9 +1056,10 @@ async function runFullScan(supabase: any) {
     if (i + BATCH_SIZE < symbols.length) await new Promise(r => setTimeout(r, 50));
   }
 
-  // 2.7. Indicator Signal scan — detect flips, crossovers, breakouts
-  const INDICATOR_TFS: Timeframe[] = ["15", "60", "240", "D"];
+  // 2.7. Indicator Signal scan + Reversal analysis — detect flips, crossovers, breakouts, reversals
+  const INDICATOR_TFS: Timeframe[] = ["15", "60", "240", "D", "W"];
   const indicatorSignalResults: any[] = [];
+  const reversalResults: any[] = [];
 
   for (let i = 0; i < symbols.length; i += BATCH_SIZE) {
     const batch = symbols.slice(i, i + BATCH_SIZE);
@@ -1338,6 +1339,23 @@ async function runFullScan(supabase: any) {
             });
           }
 
+          // --- Reversal analysis (reuse candles already fetched) ---
+          const revResult = analyzeReversalCron(candles);
+          if (revResult) {
+            const grade: "S" | "A" | "B" | "C" = revResult.score >= 75 ? "S" : revResult.score >= 60 ? "A" : revResult.score >= 45 ? "B" : "C";
+            if (grade !== "C") {
+              const rr = Math.abs(revResult.target - price) / Math.abs(price - revResult.invalidation);
+              reversalResults.push({
+                symbol, price, change24h: change, volume24h: vol, timeframe: tf,
+                direction: revResult.direction, score: Math.round(revResult.score), grade,
+                confirmations: revResult.confirmations, categoryCount: revResult.categoryCount,
+                topReason: revResult.confirmations.sort((a: any, b: any) => b.weight - a.weight)[0]?.name ?? "Multiple signals",
+                timestamp: Date.now(), invalidation: revResult.invalidation, target: revResult.target,
+                riskReward: Math.round(rr * 10) / 10,
+              });
+            }
+          }
+
         } catch { /* skip */ }
       }
     }));
@@ -1397,9 +1415,7 @@ async function runFullScan(supabase: any) {
     if (i + BATCH_SIZE < symbols.length) await new Promise(r => setTimeout(r, 50));
   }
 
-  // 3b. Reversal scan
-  const REVERSAL_TIMEFRAMES: Timeframe[] = ["15", "60", "240", "D", "W"];
-  const reversalResults: any[] = [];
+  // 3b. Reversal helper functions (reversalResults populated in indicator scan loop above)
 
   function getRSISeriesCron(closes: number[], period = 14): number[] {
     const series: number[] = [];
@@ -1619,31 +1635,6 @@ async function runFullScan(supabase: any) {
     return { direction, score, confirmations: dominantConfs, categoryCount, invalidation, target };
   }
 
-  for (let i = 0; i < symbols.length; i += BATCH_SIZE) {
-    const batch = symbols.slice(i, i + BATCH_SIZE);
-    await Promise.all(batch.map(async ({ symbol, category, price, change, vol }) => {
-      for (const tf of REVERSAL_TIMEFRAMES) {
-        try {
-          const candles = await fetchKlines(symbol, tf, category, 220);
-          if (candles.length < 60) continue;
-          const result = analyzeReversalCron(candles);
-          if (!result) continue;
-          const grade: "S" | "A" | "B" | "C" = result.score >= 75 ? "S" : result.score >= 60 ? "A" : result.score >= 45 ? "B" : "C";
-          if (grade === "C") continue;
-          const rr = Math.abs(result.target - price) / Math.abs(price - result.invalidation);
-          reversalResults.push({
-            symbol, price, change24h: change, volume24h: vol, timeframe: tf,
-            direction: result.direction, score: Math.round(result.score), grade,
-            confirmations: result.confirmations, categoryCount: result.categoryCount,
-            topReason: result.confirmations.sort((a: any, b: any) => b.weight - a.weight)[0]?.name ?? "Multiple signals",
-            timestamp: Date.now(), invalidation: result.invalidation, target: result.target,
-            riskReward: Math.round(rr * 10) / 10,
-          });
-        } catch { /* skip */ }
-      }
-    }));
-    if (i + BATCH_SIZE < symbols.length) await new Promise(r => setTimeout(r, 50));
-  }
   reversalResults.sort((a: any, b: any) => b.score - a.score);
   const topReversals = reversalResults.slice(0, 50);
 
