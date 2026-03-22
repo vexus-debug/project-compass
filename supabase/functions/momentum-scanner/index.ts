@@ -17,6 +17,7 @@ interface MomentumSignal {
   price: number;
   change24h: number;
   volume24h: number;
+  turnover24h: number;
   timeframe: string;
   score: number;
   direction: 'bull' | 'bear';
@@ -31,6 +32,15 @@ interface MomentumSignal {
     obvBreakout: boolean;
     squeezeFire: boolean;
     vwapBreak: boolean;
+    // New signals
+    momentumAcceleration: boolean;
+    earlyMove: boolean;
+    rangeBreakout: boolean;
+    volatilityExpansion: boolean;
+    consolidationBreakout: boolean;
+    momentumIgnition: boolean;
+    htfTrendAligned: boolean;
+    highLiquidity: boolean;
   };
   details: {
     rsi: number;
@@ -47,6 +57,22 @@ interface MomentumSignal {
     ema50: number;
     atr: number;
     bbSqueeze: number;
+    // New details
+    rocAccel: number;
+    rangePosition: number;
+    atrExpansion: number;
+    consolidationBars: number;
+    htfTrend: string;
+  };
+  // New market data fields
+  marketData?: {
+    openInterest?: number;
+    oiChange5m?: number;
+    fundingRate?: number;
+    predictedFunding?: number;
+    fundingShift?: number;
+    orderBookImbalance?: number;
+    bidAskRatio?: number;
   };
   timestamp: number;
 }
@@ -182,9 +208,68 @@ function calcBBWidth(closes: number[], period = 20): number[] {
   return width;
 }
 
+// ─── New: Range / Consolidation detection ───
+
+function detectRange(candles: Candle[], lookback: number): { inRange: boolean; rangeHigh: number; rangeLow: number; bars: number } {
+  if (candles.length < lookback + 1) return { inRange: false, rangeHigh: 0, rangeLow: 0, bars: 0 };
+  const slice = candles.slice(-lookback - 1, -1);
+  let hh = -Infinity, ll = Infinity;
+  for (const c of slice) {
+    if (c.high > hh) hh = c.high;
+    if (c.low < ll) ll = c.low;
+  }
+  const rangeWidth = hh - ll;
+  const avgPrice = (hh + ll) / 2;
+  const rangePct = avgPrice > 0 ? (rangeWidth / avgPrice) * 100 : 0;
+  // Consider it a range if price moved less than 4% over the lookback
+  const inRange = rangePct < 4;
+  return { inRange, rangeHigh: hh, rangeLow: ll, bars: lookback };
+}
+
+function detectConsolidation(candles: Candle[], minBars = 10, maxBars = 60): { isConsolidating: boolean; bars: number; rangeHigh: number; rangeLow: number } {
+  if (candles.length < minBars + 1) return { isConsolidating: false, bars: 0, rangeHigh: 0, rangeLow: 0 };
+  
+  // Walk backwards to find how many bars were in a tight range
+  const closedCandles = candles.slice(0, -1);
+  let bars = 0;
+  let hh = closedCandles[closedCandles.length - 1].high;
+  let ll = closedCandles[closedCandles.length - 1].low;
+  
+  for (let i = closedCandles.length - 2; i >= Math.max(0, closedCandles.length - maxBars); i--) {
+    const testHigh = Math.max(hh, closedCandles[i].high);
+    const testLow = Math.min(ll, closedCandles[i].low);
+    const mid = (testHigh + testLow) / 2;
+    const pct = mid > 0 ? ((testHigh - testLow) / mid) * 100 : 0;
+    if (pct > 3.5) break; // Range too wide
+    hh = testHigh;
+    ll = testLow;
+    bars++;
+  }
+  
+  return { isConsolidating: bars >= minBars, bars, rangeHigh: hh, rangeLow: ll };
+}
+
+// ─── New: HTF trend check using simple EMA alignment ───
+
+function checkHTFTrend(candles: Candle[]): 'bull' | 'bear' | 'neutral' {
+  if (candles.length < 55) return 'neutral';
+  const closes = candles.map(c => c.close);
+  const e21 = ema(closes, 21);
+  const e50 = ema(closes, 50);
+  const last = closes.length - 1;
+  if (closes[last] > e21[last] && e21[last] > e50[last]) return 'bull';
+  if (closes[last] < e21[last] && e21[last] < e50[last]) return 'bear';
+  return 'neutral';
+}
+
 // ─── Core momentum detection ───
 
-function detectMomentum(candles: Candle[], timeframe: string): Omit<MomentumSignal, 'symbol' | 'price' | 'change24h' | 'volume24h'> | null {
+function detectMomentum(
+  candles: Candle[],
+  timeframe: string,
+  htfTrend: 'bull' | 'bear' | 'neutral' = 'neutral',
+  turnover24h: number = 0,
+): Omit<MomentumSignal, 'symbol' | 'price' | 'change24h' | 'volume24h' | 'turnover24h' | 'marketData'> | null {
   if (candles.length < 60) return null;
 
   const closes = candles.map(c => c.close);
@@ -207,7 +292,7 @@ function detectMomentum(candles: Candle[], timeframe: string): Omit<MomentumSign
   const obvEma = ema(obv, 20);
   const bbWidth = calcBBWidth(closes);
 
-  // Volume analysis - compare last 3 bars avg vs prior 20 bars avg
+  // Volume analysis
   const recentVolAvg = (volumes[last] + volumes[prev] + volumes[prev2]) / 3;
   const priorVolSlice = volumes.slice(Math.max(0, last - 23), last - 3);
   const priorVolAvg = priorVolSlice.length > 0 ? priorVolSlice.reduce((a, b) => a + b, 0) / priorVolSlice.length : 1;
@@ -215,12 +300,15 @@ function detectMomentum(candles: Candle[], timeframe: string): Omit<MomentumSign
 
   // Rate of change (5-bar)
   const roc5 = closes[last - 5] !== 0 ? ((closes[last] - closes[last - 5]) / closes[last - 5]) * 100 : 0;
-
-  // Price acceleration: ROC of ROC
   const roc5prev = closes[last - 10] !== 0 ? ((closes[last - 5] - closes[last - 10]) / closes[last - 10]) * 100 : 0;
   const acceleration = roc5 - roc5prev;
 
-  // VWAP approximation (session-based using last 20 bars)
+  // ROC acceleration (3-bar vs prior 3-bar)
+  const roc3 = closes[last - 3] !== 0 ? ((closes[last] - closes[last - 3]) / closes[last - 3]) * 100 : 0;
+  const roc3prev = closes[last - 6] !== 0 ? ((closes[last - 3] - closes[last - 6]) / closes[last - 6]) * 100 : 0;
+  const rocAccel = roc3 - roc3prev;
+
+  // VWAP
   let vwapNum = 0, vwapDen = 0;
   for (let i = Math.max(0, last - 19); i <= last; i++) {
     const typical = (candles[i].high + candles[i].low + candles[i].close) / 3;
@@ -229,13 +317,17 @@ function detectMomentum(candles: Candle[], timeframe: string): Omit<MomentumSign
   }
   const vwap = vwapDen > 0 ? vwapNum / vwapDen : closes[last];
 
-  // BB Squeeze: width at lowest in last 50 bars?
+  // BB Squeeze
   const recentBBW = bbWidth.slice(Math.max(0, last - 50));
   const minBBW = Math.min(...recentBBW.filter(v => !isNaN(v)));
   const bbSqueezeRatio = !isNaN(bbWidth[last]) && minBBW > 0 ? bbWidth[last] / minBBW : 999;
-  // Squeeze fire = was squeezed (within 20% of min) and now expanding
   const wasSqueezed = !isNaN(bbWidth[prev2]) && minBBW > 0 && bbWidth[prev2] / minBBW < 1.2;
   const isExpanding = !isNaN(bbWidth[last]) && !isNaN(bbWidth[prev]) && bbWidth[last] > bbWidth[prev] * 1.05;
+
+  // ATR expansion
+  const atrRecent = atrArr[last] ?? 0;
+  const atrPrior = atrArr[Math.max(0, last - 10)] ?? 0;
+  const atrExpansion = atrPrior > 0 ? atrRecent / atrPrior : 1;
 
   // Current values
   const curRSI = rsi[last] ?? 50;
@@ -255,54 +347,98 @@ function detectMomentum(candles: Candle[], timeframe: string): Omit<MomentumSign
   if (!isBullish && !isBearish) return null;
   const direction: 'bull' | 'bear' = isBullish ? 'bull' : 'bear';
 
-  // ─── Signal detection (tuned for EARLY momentum) ───
-
-  // 1. RSI Breakout: RSI crossing 50 from neutral zone (momentum initiation)
+  // ─── Original signals ───
   const rsiBreakout = direction === 'bull'
     ? (prevRSI < 55 && curRSI > 50 && curRSI < 75)
     : (prevRSI > 45 && curRSI < 50 && curRSI > 25);
 
-  // 2. MACD Cross: histogram flipping or accelerating
   const macdCross = direction === 'bull'
     ? (prevMACDHist <= 0 && curMACDHist > 0) || (curMACDHist > prevMACDHist && curMACDHist > 0)
     : (prevMACDHist >= 0 && curMACDHist < 0) || (curMACDHist < prevMACDHist && curMACDHist < 0);
 
-  // 3. Volume spike: at least 1.8x average
   const volumeSpike = volumeRatio >= 1.8;
 
-  // 4. ADX surge: rising and above 20 (trend starting)
   const prevADX = adxArr[prev] ?? 0;
   const adxSurge = curADX > 20 && curADX > prevADX && (curADX - prevADX) > 1;
 
-  // 5. EMA crossover: fast crossing slow recently
   const emaCrossover = direction === 'bull'
     ? (ema9[prev] <= ema21[prev] && ema9[last] > ema21[last]) || (ema9[last] > ema21[last] && ema21[last] > ema50[last])
     : (ema9[prev] >= ema21[prev] && ema9[last] < ema21[last]) || (ema9[last] < ema21[last] && ema21[last] < ema50[last]);
 
-  // 6. Price acceleration
   const priceAcceleration = direction === 'bull' ? acceleration > 0.1 : acceleration < -0.1;
 
-  // 7. Stochastic momentum: K crossing D in momentum zone
   const prevStochK = stochK[prev] ?? 50;
   const prevStochD = stochD[prev] ?? 50;
   const stochMomentum = direction === 'bull'
     ? (prevStochK <= prevStochD && curStochK > curStochD && curStochK < 80)
     : (prevStochK >= prevStochD && curStochK < curStochD && curStochK > 20);
 
-  // 8. OBV breakout: OBV crossing its EMA
   const obvBreakout = direction === 'bull'
     ? obv[last] > obvEma[last] && obv[prev] <= obvEma[prev]
     : obv[last] < obvEma[last] && obv[prev] >= obvEma[prev];
 
-  // 9. Squeeze fire: BB was compressed, now expanding with directional move
   const squeezeFire = wasSqueezed && isExpanding && (
     direction === 'bull' ? roc5 > 0 : roc5 < 0
   );
 
-  // 10. VWAP break: price crossing VWAP
   const vwapBreak = direction === 'bull'
     ? closes[last] > vwap && closes[prev] <= vwap
     : closes[last] < vwap && closes[prev] >= vwap;
+
+  // ─── NEW SIGNALS ───
+
+  // 11. Momentum Acceleration: ROC is accelerating (rate of rate of change)
+  const momentumAcceleration = direction === 'bull'
+    ? rocAccel > 0.15 && roc3 > 0
+    : rocAccel < -0.15 && roc3 < 0;
+
+  // 12. Early Move Filter: RSI between 45-65 (bull) or 35-55 (bear), not overextended
+  // + ADX just starting to rise (< 30) + recent EMA cross
+  const earlyMove = direction === 'bull'
+    ? (curRSI > 45 && curRSI < 65 && curADX < 30 && curADX > 18 && ema9[last] > ema21[last])
+    : (curRSI > 35 && curRSI < 55 && curADX < 30 && curADX > 18 && ema9[last] < ema21[last]);
+
+  // 13. Range Breakout: Was in a range (30, 60 bars), now breaking out
+  const range30 = detectRange(candles, 30);
+  const range60 = detectRange(candles, 60);
+  const rangeBreakout = (
+    (range30.inRange && (
+      (direction === 'bull' && closes[last] > range30.rangeHigh) ||
+      (direction === 'bear' && closes[last] < range30.rangeLow)
+    )) ||
+    (range60.inRange && (
+      (direction === 'bull' && closes[last] > range60.rangeHigh) ||
+      (direction === 'bear' && closes[last] < range60.rangeLow)
+    ))
+  );
+
+  // Range position: where price is relative to recent range (0=bottom, 1=top)
+  const rHigh = range30.rangeHigh || candles[last].high;
+  const rLow = range30.rangeLow || candles[last].low;
+  const rangePosition = (rHigh - rLow) > 0 ? (closes[last] - rLow) / (rHigh - rLow) : 0.5;
+
+  // 14. Volatility Expansion: ATR expanding significantly
+  const volatilityExpansion = atrExpansion > 1.4 && volumeRatio > 1.5;
+
+  // 15. Consolidation Breakout: Was consolidating, now breaking out
+  const consol = detectConsolidation(candles);
+  const consolidationBreakout = consol.isConsolidating && (
+    (direction === 'bull' && closes[last] > consol.rangeHigh) ||
+    (direction === 'bear' && closes[last] < consol.rangeLow)
+  );
+
+  // 16. Momentum Ignition: Sudden large candle with volume (>2 ATR move in 1-2 bars)
+  const lastBarRange = Math.abs(closes[last] - candles[last].open);
+  const momentumIgnition = curATR > 0 && lastBarRange > curATR * 1.5 && volumeRatio > 2.0 && (
+    (direction === 'bull' && closes[last] > candles[last].open) ||
+    (direction === 'bear' && closes[last] < candles[last].open)
+  );
+
+  // 17. HTF Trend Aligned
+  const htfTrendAligned = htfTrend === direction;
+
+  // 18. High Liquidity Filter
+  const highLiquidity = turnover24h > 10_000_000;
 
   const signals = {
     rsiBreakout,
@@ -315,72 +451,65 @@ function detectMomentum(candles: Candle[], timeframe: string): Omit<MomentumSign
     obvBreakout,
     squeezeFire,
     vwapBreak,
+    momentumAcceleration,
+    earlyMove,
+    rangeBreakout,
+    volatilityExpansion,
+    consolidationBreakout,
+    momentumIgnition,
+    htfTrendAligned,
+    highLiquidity,
   };
 
   // Weighted scoring
-  const weights = {
-    rsiBreakout: 10,
-    macdCross: 15,
-    volumeSpike: 20,
-    adxSurge: 15,
-    emaCrossover: 12,
-    priceAcceleration: 8,
-    stochMomentum: 8,
-    obvBreakout: 7,
-    squeezeFire: 12,
-    vwapBreak: 8,
+  const weights: Record<string, number> = {
+    rsiBreakout: 8,
+    macdCross: 12,
+    volumeSpike: 15,
+    adxSurge: 12,
+    emaCrossover: 10,
+    priceAcceleration: 7,
+    stochMomentum: 7,
+    obvBreakout: 6,
+    squeezeFire: 10,
+    vwapBreak: 7,
+    momentumAcceleration: 8,
+    earlyMove: 10,
+    rangeBreakout: 12,
+    volatilityExpansion: 8,
+    consolidationBreakout: 12,
+    momentumIgnition: 14,
+    htfTrendAligned: 10,
+    highLiquidity: 5,
   };
 
   let score = 0;
   for (const [key, val] of Object.entries(signals)) {
-    if (val) score += weights[key as keyof typeof weights];
+    if (val) score += weights[key] ?? 0;
   }
 
-  // Bonus for confluence
   const signalCount = Object.values(signals).filter(Boolean).length;
-  if (signalCount >= 5) score += 10;
-  if (signalCount >= 7) score += 15;
+  if (signalCount >= 6) score += 10;
+  if (signalCount >= 9) score += 15;
 
-  // ─── HARDCORE FILTERING: Only life-or-death conviction signals ───
-
-  // Must have volume confirmation — no volume = no real move
+  // ─── Filtering: require meaningful confluence ───
+  // Must have volume confirmation
   if (!volumeSpike) return null;
+  if (volumeRatio < 2.0) return null;
 
-  // Volume must be at least 2.5x average, not just 1.8x
-  if (volumeRatio < 2.5) return null;
+  // Must have at least 4 confirming signals and decent score
+  if (signalCount < 4 || score < 40) return null;
 
-  // Must have at least 5 confirming signals and high score
-  if (signalCount < 5 || score < 50) return null;
+  // Must have at least one trend engine signal (MACD or ADX or EMA)
+  if (!macdCross && !adxSurge && !emaCrossover) return null;
 
-  // Must have MACD confirmation (trend engine)
-  if (!macdCross) return null;
-
-  // Must have ADX showing real trend strength ≥25 (not choppy garbage)
-  if (!adxSurge || curADX < 25) return null;
-
-  // EMA alignment is mandatory — price structure must confirm
-  if (!emaCrossover) return null;
-
-  // Price acceleration must confirm — move is gaining steam, not fading
-  if (!priceAcceleration) return null;
-
-  // RSI must not be overextended (likely to reverse soon)
-  if (direction === 'bull' && curRSI > 78) return null;
-  if (direction === 'bear' && curRSI < 22) return null;
-
-  // Stochastic must not be at extremes (overbought/oversold = late entry)
-  if (direction === 'bull' && curStochK > 85) return null;
-  if (direction === 'bear' && curStochK < 15) return null;
-
-  // OBV must confirm — smart money has to be in the move
-  const obvTrending = direction === 'bull'
-    ? obv[last] > obv[last - 5]
-    : obv[last] < obv[last - 5];
-  if (!obvTrending) return null;
+  // RSI not overextended
+  if (direction === 'bull' && curRSI > 80) return null;
+  if (direction === 'bear' && curRSI < 20) return null;
 
   return {
     timeframe,
-    score,
+    score: Math.min(score, 100),
     direction,
     signals,
     details: {
@@ -398,6 +527,11 @@ function detectMomentum(candles: Candle[], timeframe: string): Omit<MomentumSign
       ema50: ema50[last],
       atr: curATR,
       bbSqueeze: Math.round(bbSqueezeRatio * 100) / 100,
+      rocAccel: Math.round(rocAccel * 100) / 100,
+      rangePosition: Math.round(rangePosition * 100) / 100,
+      atrExpansion: Math.round(atrExpansion * 100) / 100,
+      consolidationBars: consol.bars,
+      htfTrend: htfTrend,
     },
     timestamp: Date.now(),
   };
@@ -405,7 +539,7 @@ function detectMomentum(candles: Candle[], timeframe: string): Omit<MomentumSign
 
 // ─── Bybit API helpers ───
 
-async function fetchTickers(): Promise<Array<{ symbol: string; lastPrice: number; price24hPcnt: number; volume24h: number; turnover24h: number }>> {
+async function fetchTickers(): Promise<Array<{ symbol: string; lastPrice: number; price24hPcnt: number; volume24h: number; turnover24h: number; fundingRate: number; predictedFunding: number }>> {
   const res = await fetch('https://api.bybit.com/v5/market/tickers?category=linear');
   const data = await res.json();
   if (data.retCode !== 0) return [];
@@ -417,10 +551,12 @@ async function fetchTickers(): Promise<Array<{ symbol: string; lastPrice: number
       price24hPcnt: parseFloat(t.price24hPcnt) * 100,
       volume24h: parseFloat(t.volume24h),
       turnover24h: parseFloat(t.turnover24h),
+      fundingRate: parseFloat(t.fundingRate || '0'),
+      predictedFunding: parseFloat(t.predictedFundingRate || t.fundingRate || '0'),
     }))
-    .filter((t: any) => t.turnover24h > 5_000_000) // Only coins with >$5M daily turnover
+    .filter((t: any) => t.turnover24h > 5_000_000)
     .sort((a: any, b: any) => b.turnover24h - a.turnover24h)
-    .slice(0, 100); // Top 100 by turnover
+    .slice(0, 100);
 }
 
 async function fetchKlines(symbol: string, interval: string, limit = 100): Promise<Candle[]> {
@@ -439,6 +575,40 @@ async function fetchKlines(symbol: string, interval: string, limit = 100): Promi
     .reverse();
 }
 
+async function fetchOpenInterest(symbol: string): Promise<{ oi: number; oiChange5m: number } | null> {
+  try {
+    const res = await fetch(`https://api.bybit.com/v5/market/open-interest?category=linear&symbol=${symbol}&intervalTime=5min&limit=3`);
+    const data = await res.json();
+    if (data.retCode !== 0 || !data.result?.list?.length) return null;
+    const list = data.result.list;
+    const current = parseFloat(list[0].openInterest);
+    const prev = list.length > 1 ? parseFloat(list[1].openInterest) : current;
+    const change = prev > 0 ? ((current - prev) / prev) * 100 : 0;
+    return { oi: current, oiChange5m: Math.round(change * 100) / 100 };
+  } catch {
+    return null;
+  }
+}
+
+async function fetchOrderbook(symbol: string): Promise<{ imbalance: number; bidAskRatio: number } | null> {
+  try {
+    const res = await fetch(`https://api.bybit.com/v5/market/orderbook?category=linear&symbol=${symbol}&limit=25`);
+    const data = await res.json();
+    if (data.retCode !== 0 || !data.result) return null;
+    const bids = (data.result.b || []) as string[][];
+    const asks = (data.result.a || []) as string[][];
+    let bidVol = 0, askVol = 0;
+    for (const b of bids) bidVol += parseFloat(b[1]);
+    for (const a of asks) askVol += parseFloat(a[1]);
+    const total = bidVol + askVol;
+    const imbalance = total > 0 ? ((bidVol - askVol) / total) * 100 : 0;
+    const bidAskRatio = askVol > 0 ? bidVol / askVol : 1;
+    return { imbalance: Math.round(imbalance * 100) / 100, bidAskRatio: Math.round(bidAskRatio * 100) / 100 };
+  } catch {
+    return null;
+  }
+}
+
 // ─── Main handler ───
 
 Deno.serve(async (req) => {
@@ -451,22 +621,60 @@ Deno.serve(async (req) => {
     const timeframes = ['15', '60', '240', 'D'];
     const allSignals: MomentumSignal[] = [];
 
-    // Process in batches of 10
-    const batchSize = 10;
+    // Pre-fetch HTF (1h) candles for trend filter
+    const htfTrends = new Map<string, 'bull' | 'bear' | 'neutral'>();
+
+    // Process in batches
+    const batchSize = 8;
+
+    // First pass: fetch 1h candles for HTF trend
+    for (let i = 0; i < tickers.length; i += batchSize) {
+      const batch = tickers.slice(i, i + batchSize);
+      await Promise.all(batch.map(async (ticker) => {
+        try {
+          const candles = await fetchKlines(ticker.symbol, '60', 100);
+          htfTrends.set(ticker.symbol, checkHTFTrend(candles));
+        } catch {
+          htfTrends.set(ticker.symbol, 'neutral');
+        }
+      }));
+      if (i + batchSize < tickers.length) await new Promise(r => setTimeout(r, 50));
+    }
+
+    // Second pass: run momentum detection on all timeframes + fetch market data for signals
     for (let i = 0; i < tickers.length; i += batchSize) {
       const batch = tickers.slice(i, i + batchSize);
       const batchPromises = batch.flatMap(ticker =>
         timeframes.map(async (tf) => {
           try {
             const candles = await fetchKlines(ticker.symbol, tf, 100);
-            const result = detectMomentum(candles, tf);
+            const htfTrend = htfTrends.get(ticker.symbol) ?? 'neutral';
+            const result = detectMomentum(candles, tf, htfTrend, ticker.turnover24h);
             if (result) {
+              // Fetch additional market data for qualifying signals
+              const [oiData, obData] = await Promise.all([
+                fetchOpenInterest(ticker.symbol),
+                fetchOrderbook(ticker.symbol),
+              ]);
+
+              const fundingShift = Math.abs(ticker.predictedFunding - ticker.fundingRate);
+
               allSignals.push({
                 ...result,
                 symbol: ticker.symbol,
                 price: ticker.lastPrice,
                 change24h: ticker.price24hPcnt,
-                volume24h: ticker.turnover24h,
+                volume24h: ticker.volume24h,
+                turnover24h: ticker.turnover24h,
+                marketData: {
+                  openInterest: oiData?.oi,
+                  oiChange5m: oiData?.oiChange5m,
+                  fundingRate: ticker.fundingRate,
+                  predictedFunding: ticker.predictedFunding,
+                  fundingShift: Math.round(fundingShift * 10000) / 10000,
+                  orderBookImbalance: obData?.imbalance,
+                  bidAskRatio: obData?.bidAskRatio,
+                },
               });
             }
           } catch {
@@ -475,7 +683,6 @@ Deno.serve(async (req) => {
         })
       );
       await Promise.all(batchPromises);
-      // Small delay between batches
       if (i + batchSize < tickers.length) {
         await new Promise(r => setTimeout(r, 100));
       }
