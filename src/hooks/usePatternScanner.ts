@@ -3,7 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { fetchTickers, fetchKlines } from '@/lib/bybit-api';
 import { detectCandlestickPatterns, type CandlestickPattern } from '@/lib/candlestick-patterns';
 import { detectChartPatterns, type ChartPattern } from '@/lib/chart-patterns';
-import { detectMarketStructure, type MarketStructureEvent } from '@/lib/market-structure';
+import { analyzeSmartMoneyConcepts, type SmcEvent, type SmcAnalysis } from '@/lib/smc';
 import type { Timeframe, AssetTrend } from '@/types/scanner';
 import { TIMEFRAME_LABELS } from '@/types/scanner';
 
@@ -16,7 +16,7 @@ export interface DetectedPattern {
   id: string;
   symbol: string;
   timeframe: Timeframe;
-  pattern: CandlestickPattern | ChartPattern | MarketStructureEvent;
+  pattern: CandlestickPattern | ChartPattern | SmcEvent;
   price: number;
   detectedAt: number;
   formedAt: number;
@@ -54,6 +54,7 @@ export function usePatternScanner(trendAssets: AssetTrend[] = []) {
   const [candlestickPatterns, setCandlestickPatterns] = useState<DetectedPattern[]>([]);
   const [chartPatterns, setChartPatterns] = useState<DetectedPattern[]>([]);
   const [structurePatterns, setStructurePatterns] = useState<DetectedPattern[]>([]);
+  const [smcAnalysis, setSmcAnalysis] = useState<SmcAnalysis | null>(null);
   const [scanning, setScanning] = useState(false);
   const [lastScanTime, setLastScanTime] = useState<number>(0);
   const [scanProgress, setScanProgress] = useState({ current: 0, total: 0 });
@@ -176,8 +177,12 @@ export function usePatternScanner(trendAssets: AssetTrend[] = []) {
                 newChart.push({ id: `ch-${symbol}-${tf}-${p.name}-${now}`, symbol: sym, timeframe: tf, pattern: { ...p, significance }, price, detectedAt: now, formedAt, category: 'chart', trendAligned: aligned });
               }
 
-              const msEvents = detectMarketStructure(closedCandles);
-              for (const p of msEvents) {
+              const smcResult = analyzeSmartMoneyConcepts(closedCandles);
+              // Store the latest analysis for the dashboard (from highest-volume symbol)
+              if (tf === '60' || tf === '240') {
+                setSmcAnalysis(prev => prev && prev.events.length > smcResult.events.length ? prev : smcResult);
+              }
+              for (const p of smcResult.events) {
                 const candleTime = (p.candleIndex >= 0 && p.candleIndex < closedCandles.length) ? closedCandles[p.candleIndex].time : 0;
                 const formedAt = candleTime > 0 ? candleTime : (closedCandles[closedCandles.length - 1]?.time ?? now);
                 const { significance, aligned } = adjustSignificance(p.significance, p.type, sym, tf, currentTrends);
@@ -230,6 +235,7 @@ export function usePatternScanner(trendAssets: AssetTrend[] = []) {
     candlestickPatterns,
     chartPatterns,
     structurePatterns,
+    smcAnalysis,
     candlestickGroups: groupByTimeframe(candlestickPatterns),
     chartGroups: groupByTimeframe(chartPatterns),
     structureGroups: groupByTimeframe(structurePatterns),
