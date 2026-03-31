@@ -22,6 +22,7 @@ export interface SmcMeta {
   momentum?: number;           // 0-100 break momentum score
   chochStrength?: number;      // 0-100 CHoCH quality
   bosFailure?: boolean;        // failed BOS
+  chochFailures?: number;      // count of failed CHoCH in current trend
   liquiditySweep?: boolean;    // sweep detected
   volatilityOk?: boolean;      // passes volatility filter
   marketPhase?: MarketPhase;

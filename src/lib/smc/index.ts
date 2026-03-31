@@ -81,10 +81,13 @@ export function analyzeSmartMoneyConcepts(candles: Candle[], htfBias?: 'bullish'
   // Calculate probabilities
   const { probBull, probBear } = calcProbabilities(filtered);
 
-  // Apply probabilities to each event
+  // Count failed CHoCH in the current trend
+  const chochFailures = countFailedChoch(candles, swings);
+
+  // Apply probabilities and chochFailures to each event
   const finalEvents = filtered.map(e => ({
     ...e,
-    meta: { ...e.meta, probBull, probBear, marketPhase },
+    meta: { ...e.meta, probBull, probBear, marketPhase, chochFailures },
   }));
 
   return {

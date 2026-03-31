@@ -153,6 +153,77 @@ export function detectBosChoch(candles: Candle[], swings: SwingPoint[]): SmcEven
 }
 
 /** Detect trend continuation: BOS → pullback → BOS */
+/**
+ * Count failed CHoCH attempts in the current trend.
+ * A failed CHoCH = price made a swing that looked like a change of character
+ * (e.g., a higher-high after a series of lower-highs in a downtrend)
+ * but the trend resumed in the original direction afterward.
+ *
+ * We walk backwards from the most recent swing to find the current trend start,
+ * then count how many CHoCH attempts failed within that trend.
+ */
+export function countFailedChoch(candles: Candle[], swings: SwingPoint[]): number {
+  const highs = swings.filter(s => s.type === 'high');
+  const lows = swings.filter(s => s.type === 'low');
+
+  if (highs.length < 3 || lows.length < 3) return 0;
+
+  // Determine current trend direction from the last few swings
+  const lastHH = highs[highs.length - 1].price > highs[highs.length - 2].price;
+  const lastHL = lows[lows.length - 1].price > lows[lows.length - 2].price;
+  const lastLH = highs[highs.length - 1].price < highs[highs.length - 2].price;
+  const lastLL = lows[lows.length - 1].price < lows[lows.length - 2].price;
+
+  // Bullish trend: HH + HL series, Bearish trend: LH + LL series
+  const isBullTrend = lastHH && lastHL;
+  const isBearTrend = lastLH && lastLL;
+
+  if (!isBullTrend && !isBearTrend) return 0;
+
+  let failures = 0;
+
+  if (isBullTrend) {
+    // In a bullish trend, a failed CHoCH = a lower-low that didn't persist
+    // (price made LL suggesting bearish CHoCH, but then made HL again)
+    // Walk backwards through lows to find the trend start
+    let trendStart = 0;
+    for (let i = lows.length - 2; i >= 1; i--) {
+      if (lows[i].price < lows[i - 1].price) {
+        // This was a LL — check if it was followed by a recovery (HL)
+        const nextLow = lows[i + 1];
+        if (nextLow && nextLow.price > lows[i].price) {
+          // Failed bearish CHoCH: LL didn't persist, price made HL after
+          failures++;
+        }
+      }
+      // If we find two consecutive lower-lows without recovery, that's
+      // before our current trend started
+      if (i >= 2 && lows[i].price < lows[i - 1].price && lows[i - 1].price < lows[i - 2].price) {
+        trendStart = i;
+        break;
+      }
+    }
+  } else {
+    // In a bearish trend, a failed CHoCH = a higher-high that didn't persist
+    // (price made HH suggesting bullish CHoCH, but then made LH again)
+    for (let i = highs.length - 2; i >= 1; i--) {
+      if (highs[i].price > highs[i - 1].price) {
+        // This was a HH — check if it was followed by a LH
+        const nextHigh = highs[i + 1];
+        if (nextHigh && nextHigh.price < highs[i].price) {
+          // Failed bullish CHoCH: HH didn't persist, price made LH after
+          failures++;
+        }
+      }
+      if (i >= 2 && highs[i].price > highs[i - 1].price && highs[i - 1].price > highs[i - 2].price) {
+        break;
+      }
+    }
+  }
+
+  return failures;
+}
+
 export function detectContinuationPatterns(candles: Candle[], swings: SwingPoint[]): SmcEvent[] {
   const events: SmcEvent[] = [];
   const highs = swings.filter(s => s.type === 'high');
