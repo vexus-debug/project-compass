@@ -28,17 +28,23 @@ const MarketStructurePage = () => {
   const filteredGroups = useMemo(() => {
     const result: PatternGroup[] = [];
     const timeframes = tfFilter === 'all' ? SCAN_TIMEFRAMES : [tfFilter];
+    const minChochFails = chochFailFilter === 'all' ? 0 : parseInt(chochFailFilter);
     for (const tf of timeframes) {
       const group = structureGroups.find(g => g.timeframe === tf);
       if (!group) continue;
       const filtered = group.patterns.filter(dp => {
         if (typeFilter !== 'all' && dp.pattern.type !== typeFilter) return false;
+        if (minChochFails > 0) {
+          const meta = (dp.pattern as SmcEvent).meta;
+          const count = meta?.chochFailures ?? 0;
+          if (count < minChochFails) return false;
+        }
         return true;
       });
       if (filtered.length > 0) result.push({ ...group, patterns: filtered });
     }
     return result;
-  }, [structureGroups, typeFilter, tfFilter]);
+  }, [structureGroups, typeFilter, tfFilter, chochFailFilter]);
 
   const totalPatterns = filteredGroups.reduce((s, g) => s + g.patterns.length, 0);
   const hasFilters = typeFilter !== 'all' || tfFilter !== 'all';
