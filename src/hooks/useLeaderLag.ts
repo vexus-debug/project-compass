@@ -100,7 +100,6 @@ export function useLeaderLag() {
       setProgress({ current: 0, total: symbols.length });
 
       // 2. Fetch klines for all symbols
-      // Always fetch 1m candles; we compute change over N periods
       const interval = '1' as const;
       const allCandles = new Map<string, Candle[]>();
 
@@ -109,15 +108,12 @@ export function useLeaderLag() {
         await Promise.all(
           batch.map(async (sym) => {
             try {
-              const candles = await fetchKlines(sym, interval, 'linear', 100);
+              const candles = await fetchKlines(sym, interval, 'linear', 50);
               if (candles.length > 10) allCandles.set(sym, candles);
             } catch { /* skip */ }
           })
         );
         setProgress({ current: Math.min(i + BATCH_SIZE, symbols.length), total: symbols.length });
-        if (i + BATCH_SIZE < symbols.length) {
-          await new Promise(r => setTimeout(r, 150));
-        }
       }
 
       // 3. Compute per-symbol metrics
