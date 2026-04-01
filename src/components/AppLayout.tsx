@@ -20,7 +20,7 @@ const NAV_GROUPS = [
       { to: '/indicator-scanner', label: 'Indicators', icon: Activity },
       { to: '/momentum', label: 'Momentum', icon: Rocket },
       { to: '/breakouts', label: 'Breakouts', icon: Crosshair },
-      { to: '/fvg-scanner', label: 'FVG Scanner', icon: Layers },
+      { to: '/fvg-scanner', label: 'FVG Scanner', icon: SplitSquareHorizontal },
       { to: '/confluence', label: 'Confluence', icon: Zap },
       { to: '/range-scanner', label: 'Range', icon: Layers },
     ],
