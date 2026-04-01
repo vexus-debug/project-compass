@@ -93,7 +93,7 @@ export function detectPureFVGs(candles: Candle[], timeframe: Timeframe): PureFVG
     }
 
     // Bearish FVG: gap between c2.high and c0.low
-    if (c2.high < c0.low && (c0.low - c2.high) > minGap) {
+    if (c2.high < c0.low && (c0.low - c2.high) > minGap && impulseBody > minImpulseBody) {
       const gapHigh = c0.low;
       const gapLow = c2.high;
       const gapSize = gapHigh - gapLow;
